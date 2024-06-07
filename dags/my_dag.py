@@ -61,6 +61,18 @@ with DAG(
         op_kwargs={"raw_data": "{{ ti.xcom_pull(task_ids='extract_data') }}"}
     )
 
+    def load_data_callable(transformed_data):
+        # Load the data to a DataFrame, set the columns
+        loaded_data = pd.DataFrame(transformed_data)
+        loaded_data.columns = [
+            "date",
+            "location",
+            "weather_temp",
+            "weather_conditions"
+        ]
+        print(loaded_data)
+
+        
     load_data = PythonOperator(
         dag=dag,
         task_id="load_data",

@@ -1,7 +1,14 @@
 from airflow import DAG
 from datetime import datetime, timedelta
+from airflow.operators.python import PythonOperator
+from airflow import DAG
+from airflow.configuration import conf
+
+import pandas as pd
 
 
+db_path = 'C:/Users/moyin/airflow/airflow.db'
+conf.set('core', 'sql_alchemy_conn', f'sqlite:///{db_path}')
 
 default_args = {
     'owner':'moyin',
@@ -17,4 +24,52 @@ with DAG(
     max_active_runs=1,
     render_template_as_native_obj=True
 ) as dag:
-    pass
+    
+    def extract_data_callable():
+        # Print message, return a response
+        print("Extracting data from an weather API")
+        return {
+            "date": "2023-01-01",
+            "location": "NYC",
+            "weather": {
+                "temp": 33,
+                "conditions": "Light snow and wind"
+            }
+        }
+    extract_data = PythonOperator(
+        dag=dag,
+        task_id="extract_data",
+        python_callable=extract_data_callable
+    )
+
+    def transform_data_callable(raw_data):
+        # Transform response to a list
+        transformed_data = [
+            [
+                raw_data.get("date"),
+                raw_data.get("location"),
+                raw_data.get("weather").get("temp"),
+                raw_data.get("weather").get("conditions")
+            ]
+        ]
+        return transformed_data
+    
+    transform_data = PythonOperator(
+        dag=dag,
+        task_id="transform_data",
+        python_callable=transform_data_callable,
+        op_kwargs={"raw_data": "{{ ti.xcom_pull(task_ids='extract_data') }}"}
+    )
+
+    load_data = PythonOperator(
+        dag=dag,
+        task_id="load_data",
+        python_callable=load_data_callable,
+        op_kwargs={"transformed_data": "{{ ti.xcom_pull(task_ids='transform_data') }}"}
+    )
+
+    # Set dependencies between tasks
+    extract_data >> transform_data >> load_data
+
+
+
